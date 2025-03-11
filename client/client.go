@@ -2,17 +2,17 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"log"
-	"net"
 	"os"
 )
 
 func main() {
-	con, err := net.Dial("tcp", "localhost:5973")
+	tlsConf := tls.Config{}
+	con, err := tls.Dial("tcp", "0.0.0.0:5973", &tlsConf)
 	if err != nil {
 		log.Fatalf("Could not connect to server: %v", err.Error())
 	}
-
 	defer con.Close()
 
 	reader := bufio.NewReader(os.Stdin)
