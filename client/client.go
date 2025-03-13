@@ -8,8 +8,8 @@ import (
 )
 
 func main() {
-	tlsConf := tls.Config{}
-	con, err := tls.Dial("tcp", "0.0.0.0:5973", &tlsConf)
+	tlsConf := tls.Config{InsecureSkipVerify: true}
+	con, err := tls.Dial("tcp", "trashsuite.games:5973", &tlsConf)
 	if err != nil {
 		log.Fatalf("Could not connect to server: %v", err.Error())
 	}

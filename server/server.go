@@ -14,6 +14,12 @@ var HOST = "skarmory"
 var ENDPOINT = HOST + ":" + PORT
 var KEY_DIR = ".lyre"
 
+func memset(buffer []byte, c byte, n int) {
+	for i := range n {
+		buffer[i] = c
+	}
+}
+
 func handleSession(con net.Conn) {
 	defer con.Close()
 
@@ -28,6 +34,7 @@ func handleSession(con net.Conn) {
 			return
 		} else if numBytes > 0 {
 			log.Printf("%s", buffer)
+			memset(buffer, 0, min(numBytes, PAYLOAD_MAX))
 		}
 	}
 }
