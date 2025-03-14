@@ -2,40 +2,49 @@ package main
 
 import (
 	"crypto/tls"
-	"errors"
-	"io"
 	"log"
+	"lyrecom"
 	"net"
+	"sync"
 )
 
-var PAYLOAD_MAX = 65535
 var PORT = "5973" // If you look at a phone, these are the keys you'd press for LYRE
 var HOST = "skarmory"
 var ENDPOINT = HOST + ":" + PORT
 var KEY_DIR = ".lyre"
 
-func memset(buffer []byte, c byte, n int) {
-	for i := range n {
-		buffer[i] = c
-	}
+var connectionPoolMtx sync.Mutex
+var connectionPool = make(map[net.Conn]struct{})
+
+func cleanupConnection(conn net.Conn) {
+	connectionPoolMtx.Lock()
+	log.Printf("Removing %v from connection pool", conn.RemoteAddr().String())
+	delete(connectionPool, conn)
+	connectionPoolMtx.Unlock()
+	conn.Close()
 }
 
-func handleSession(con net.Conn) {
-	defer con.Close()
+func handleSession(conn net.Conn) {
+	connectionPoolMtx.Lock()
+	connectionPool[conn] = struct{}{}
+	connectionPoolMtx.Unlock()
+	defer cleanupConnection(conn)
 
-	buffer := make([]byte, PAYLOAD_MAX)
+	msgChannel := make(chan []byte)
+	go lyrecom.ListenForMessages(conn, msgChannel)
+
 	for {
-		numBytes, err := con.Read(buffer)
-		if errors.Is(err, io.EOF) {
-			log.Printf("Hit EOF, closing connection with %v gracefully", con.RemoteAddr().String())
-			break
-		} else if err != nil {
-			log.Printf("Error during connection: %v", err.Error())
-			return
-		} else if numBytes > 0 {
-			log.Printf("%s", buffer)
-			memset(buffer, 0, min(numBytes, PAYLOAD_MAX))
+		message := <-msgChannel
+		connectionPoolMtx.Lock()
+		for outConn := range connectionPool {
+			if outConn != conn {
+				_, err := outConn.Write(message)
+				if err != nil {
+					log.Printf("Could not send message from %v to %v", conn.RemoteAddr().String(), outConn.RemoteAddr().String())
+				}
+			}
 		}
+		connectionPoolMtx.Unlock()
 	}
 }
 

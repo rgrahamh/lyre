@@ -4,17 +4,13 @@ import (
 	"bufio"
 	"crypto/tls"
 	"log"
+	"lyrecom"
 	"os"
 )
 
-func main() {
-	tlsConf := tls.Config{InsecureSkipVerify: true}
-	con, err := tls.Dial("tcp", "trashsuite.games:5973", &tlsConf)
-	if err != nil {
-		log.Fatalf("Could not connect to server: %v", err.Error())
-	}
-	defer con.Close()
+var PAYLOAD_MAX = 65535
 
+func inputReader(con *tls.Conn) {
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
@@ -32,4 +28,18 @@ func main() {
 			log.Fatalf("Could not write to server: %v", err.Error())
 		}
 	}
+}
+
+func main() {
+	tlsConf := tls.Config{InsecureSkipVerify: true}
+	con, err := tls.Dial("tcp", "trashsuite.games:5973", &tlsConf)
+	if err != nil {
+		log.Fatalf("Could not connect to server: %v", err.Error())
+	}
+	defer con.Close()
+
+	messageChannel := make(chan []byte)
+	go lyrecom.ListenForMessages(con, messageChannel)
+
+	inputReader(con)
 }
