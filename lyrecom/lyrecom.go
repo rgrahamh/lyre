@@ -26,8 +26,7 @@ func ListenForMessages(con net.Conn, msgChannel chan []byte) {
 			log.Printf("Error during connection: %v", err.Error())
 			break
 		} else if numBytes > 0 {
-			log.Printf("[%s]: %s", con.RemoteAddr().String(), buffer)
-			msgChannel <- buffer
+			msgChannel <- buffer[0:numBytes]
 		}
 	}
 }

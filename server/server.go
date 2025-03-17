@@ -35,7 +35,7 @@ func handleSession(conn net.Conn) {
 
 	for {
 		message := <-msgChannel
-		connectionPoolMtx.Lock()
+		log.Printf("[%s]: %s", conn.RemoteAddr().String(), message)
 		for outConn := range connectionPool {
 			if outConn != conn {
 				_, err := outConn.Write(message)
@@ -44,7 +44,6 @@ func handleSession(conn net.Conn) {
 				}
 			}
 		}
-		connectionPoolMtx.Unlock()
 	}
 }
 
@@ -71,5 +70,4 @@ func main() {
 
 		go handleSession(con)
 	}
-
 }

@@ -30,7 +30,15 @@ func inputReader(con *tls.Conn) {
 	}
 }
 
+func handleMessages(messageChannel chan []byte) {
+	for {
+		log.Printf("%s", <-messageChannel)
+	}
+}
+
 func main() {
+	log.SetFlags(0)
+
 	tlsConf := tls.Config{InsecureSkipVerify: true}
 	con, err := tls.Dial("tcp", "trashsuite.games:5973", &tlsConf)
 	if err != nil {
@@ -40,6 +48,6 @@ func main() {
 
 	messageChannel := make(chan []byte)
 	go lyrecom.ListenForMessages(con, messageChannel)
-
-	inputReader(con)
+	go handleMessages(messageChannel)
+	go inputReader(con)
 }
