@@ -6,6 +6,8 @@ import (
 	"log"
 	"lyrecom"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
 var PAYLOAD_MAX = 65535
@@ -39,6 +41,9 @@ func handleMessages(messageChannel chan []byte) {
 func main() {
 	log.SetFlags(0)
 
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+
 	tlsConf := tls.Config{InsecureSkipVerify: true}
 	con, err := tls.Dial("tcp", "trashsuite.games:5973", &tlsConf)
 	if err != nil {
@@ -50,4 +55,6 @@ func main() {
 	go lyrecom.ListenForMessages(con, messageChannel)
 	go handleMessages(messageChannel)
 	go inputReader(con)
+
+	<-sig
 }
