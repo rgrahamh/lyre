@@ -1,5 +1,7 @@
-# Where the keys should be generated
-KEY_DIR=".lyre"
+#!/bin/bash
+
+# Where the keys should be generated (default is our working directory/.lyre)
+KEY_DIR="`pwd`/.lyre"
 
 # Key details
 COUNTRY="US"
@@ -19,7 +21,7 @@ if [[ $? != 0 ]]; then
     which yum &>/dev/null
     # TODO: Look up package in other distros
     if [[ $? == 0 ]]; then
-        yum install openssl openssl-devel
+        sudo yum install openssl openssl-devel
     fi
 fi
 

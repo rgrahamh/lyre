@@ -3,14 +3,14 @@ package main
 import (
 	"bufio"
 	"crypto/tls"
+	"errors"
+	"io"
 	"log"
 	"lyrecom"
 	"os"
 	"os/signal"
 	"syscall"
 )
-
-var PAYLOAD_MAX = 65535
 
 func inputReader(con *tls.Conn) {
 	reader := bufio.NewReader(os.Stdin)
@@ -31,6 +31,22 @@ func inputReader(con *tls.Conn) {
 	}
 }
 
+func ListenForMessages(con *tls.Conn, msgChannel chan []byte) {
+	buffer := make([]byte, lyrecom.PAYLOAD_MAX)
+	for {
+		numBytes, err := (*con).Read(buffer)
+		if errors.Is(err, io.EOF) {
+			log.Printf("Hit EOF, closing connection with %v gracefully", (*con).RemoteAddr().String())
+			break
+		} else if err != nil {
+			log.Printf("Error during connection: %v", err.Error())
+			break
+		} else if numBytes > 0 {
+			msgChannel <- buffer[0:numBytes]
+		}
+	}
+}
+
 func handleMessages(messageChannel chan []byte) {
 	for {
 		log.Printf("%s", <-messageChannel)
@@ -44,16 +60,16 @@ func main() {
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 
 	tlsConf := tls.Config{InsecureSkipVerify: true}
-	con, err := tls.Dial("tcp", "trashsuite.games:5973", &tlsConf)
+	conn, err := tls.Dial("tcp", "trashsuite.games:5973", &tlsConf)
 	if err != nil {
 		log.Fatalf("Could not connect to server: %v", err.Error())
 	}
-	defer con.Close()
+	defer conn.Close()
 
 	messageChannel := make(chan []byte)
-	go lyrecom.ListenForMessages(con, messageChannel)
+	go ListenForMessages(conn, messageChannel)
 	go handleMessages(messageChannel)
-	go inputReader(con)
+	go inputReader(conn)
 
 	<-sig
 }

@@ -2,6 +2,8 @@ package main
 
 import (
 	"crypto/tls"
+	"errors"
+	"io"
 	"log"
 	"lyrecom"
 	"net"
@@ -14,36 +16,60 @@ var ENDPOINT = HOST + ":" + PORT
 var KEY_DIR = ".lyre"
 
 var connectionPoolMtx sync.Mutex
-var connectionPool = make(map[net.Conn]struct{})
+var connectionPool = make(map[*net.Conn]struct{})
 
-func cleanupConnection(conn net.Conn) {
+func ListenForMessages(conn *net.Conn, msgChannel chan []byte) {
+	buffer := make([]byte, lyrecom.PAYLOAD_MAX)
+	for {
+		numBytes, err := (*conn).Read(buffer)
+		if errors.Is(err, io.EOF) {
+			log.Printf("Hit EOF, closing connection with %v gracefully", (*conn).RemoteAddr().String())
+			break
+		} else if err != nil {
+			log.Printf("Error during connection: %v", err.Error())
+			break
+		} else if numBytes > 0 {
+			msgChannel <- buffer[0:numBytes]
+		}
+	}
+}
+
+func cleanupConnection(conn *net.Conn) {
 	connectionPoolMtx.Lock()
-	log.Printf("Removing %v from connection pool", conn.RemoteAddr().String())
-	delete(connectionPool, conn)
+	_, shouldClose := connectionPool[conn]
 	connectionPoolMtx.Unlock()
-	conn.Close()
+
+	if shouldClose {
+		delete(connectionPool, conn)
+		(*conn).Close()
+	}
 }
 
 func handleSession(conn net.Conn) {
 	connectionPoolMtx.Lock()
-	connectionPool[conn] = struct{}{}
+	connectionPool[&conn] = struct{}{}
 	connectionPoolMtx.Unlock()
-	defer cleanupConnection(conn)
+
+	defer cleanupConnection(&conn)
 
 	msgChannel := make(chan []byte)
-	go lyrecom.ListenForMessages(conn, msgChannel)
+	go ListenForMessages(&conn, msgChannel)
 
 	for {
 		message := <-msgChannel
 		log.Printf("[%s]: %s", conn.RemoteAddr().String(), message)
+		connectionPoolMtx.Lock()
 		for outConn := range connectionPool {
-			if outConn != conn {
-				_, err := outConn.Write(message)
+			if outConn != &conn {
+				_, err := (*outConn).Write(message)
 				if err != nil {
-					log.Printf("Could not send message from %v to %v", conn.RemoteAddr().String(), outConn.RemoteAddr().String())
+					log.Printf("Could not send message from %v to %v; removing from connection pool", conn.RemoteAddr().String(), (*outConn).RemoteAddr().String())
+					delete(connectionPool, &conn)
+					conn.Close()
 				}
 			}
 		}
+		connectionPoolMtx.Unlock()
 	}
 }
 
@@ -63,11 +89,11 @@ func main() {
 	defer sock.Close()
 
 	for {
-		con, err := sock.Accept()
+		conn, err := sock.Accept()
 		if err != nil {
 			log.Fatalf("Error receiving connection: %v", err.Error())
 		}
 
-		go handleSession(con)
+		go handleSession(conn)
 	}
 }
