@@ -21,9 +21,8 @@ func inputReader(con *tls.Conn) {
 			log.Fatalf("Could not read string from stdin")
 		}
 
-		// We don't want to send a newline back at the end
-		buff := ([]byte)(text)
-		buff[len(buff)-1] = 0
+		// We'll remove the last byte, to strip the newline
+		buff := ([]byte)(text[0 : len(text)-1])
 
 		_, err = con.Write(buff)
 		if err != nil {
